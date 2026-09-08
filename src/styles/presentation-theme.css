@@ -195,3 +195,47 @@ html[data-theme="dark"] .presentation-policy-menu [role="option"][data-state="ch
   margin-left: auto !important;
   margin-bottom: 0.5rem !important;
 }
+
+/* The live Disability presentation already shares horizontal space with the
+ * Input Snapshot rail. Keeping its Builder-only right-side metric rail creates
+ * a third column and compresses the projection chart. In Presentation, give the
+ * visualization the full module width and place its five monthly metrics in one
+ * responsive row beneath it. PDF/report layout remains owned by print styles. */
+@media screen {
+  .presentation-mode .disability-coverage-grid {
+    grid-template-areas:
+      "chart"
+      "metric"
+      "summary" !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: auto auto auto !important;
+  }
+
+  .presentation-mode .disability-coverage-grid > .module-metric-rail {
+    min-width: 0;
+  }
+
+  .presentation-mode .disability-coverage-grid > .module-metric-rail > .space-y-2 {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .presentation-mode .disability-coverage-grid > .module-metric-rail .module-metric-card {
+    min-width: 0;
+  }
+
+  @media (max-width: 1280px) {
+    .presentation-mode .disability-coverage-grid > .module-metric-rail > .space-y-2 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 960px) {
+    .presentation-mode .disability-coverage-grid > .module-metric-rail > .space-y-2,
+    .presentation-mode .disability-summary-rail,
+    .presentation-mode .disability-summary-rail--cola {
+      grid-template-columns: minmax(0, 1fr) !important;
+    }
+  }
+}
