@@ -238,4 +238,79 @@ html[data-theme="dark"] .presentation-policy-menu [role="option"][data-state="ch
       grid-template-columns: minmax(0, 1fr) !important;
     }
   }
+
+  /* Premium vs. Self-Insured is also a Builder two-column workspace. In
+   * Presentation, the Input Snapshot already consumes the left rail, so keep
+   * the comparison itself single-column and let the chart use the full module
+   * width. Move Key Metrics below the visualization rather than reserving a
+   * fixed 19rem side column that shrinks the graph. */
+  .presentation-mode .module-output-container:has(.premium-policy-parameters) > .space-y-4 > .grid.gap-4 {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .presentation-mode .module-output-container:has(.premium-policy-parameters) > .space-y-4 > .grid.gap-4 > div:first-child {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .presentation-mode .module-output-container:has(.premium-policy-parameters) > .space-y-4 > .grid.gap-4 > div:first-child > .border-gray-800 {
+    width: 100% !important;
+  }
+
+  .presentation-mode .module-output-container:has(.premium-policy-parameters) .chart-reveal {
+    width: 100% !important;
+    height: clamp(19rem, 40vh, 25rem) !important;
+    min-height: 19rem !important;
+  }
+
+  .presentation-mode .module-output-container:has(.premium-policy-parameters) > .space-y-4 > .grid.gap-4 > div:last-child > .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  @media (max-width: 1080px) {
+    .presentation-mode .module-output-container:has(.premium-policy-parameters) > .space-y-4 > .grid.gap-4 > div:last-child > .grid {
+      grid-template-columns: minmax(0, 1fr) !important;
+    }
+  }
+}
+
+/* The report version uses the same Premium vs. Self-Insured component but is
+ * staged in the print tree. Force that report visualization to consume the full
+ * printable content width as well; otherwise the Builder 19rem side column is
+ * preserved and Recharts resolves to a small centered plot. */
+@media print {
+  .print-report-body .module-output-container:has(.premium-policy-parameters) > .space-y-4 > .grid.gap-4 {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 5pt !important;
+    width: 100% !important;
+  }
+
+  .print-report-body .module-output-container:has(.premium-policy-parameters) > .space-y-4 > .grid.gap-4 > div:first-child,
+  .print-report-body .module-output-container:has(.premium-policy-parameters) > .space-y-4 > .grid.gap-4 > div:first-child > div:first-child {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+
+  .print-report-body .module-output-container:has(.premium-policy-parameters) .chart-reveal {
+    display: block !important;
+    width: 100% !important;
+    height: 3.35in !important;
+    min-height: 3.35in !important;
+    max-height: 3.35in !important;
+  }
+
+  .print-report-body .module-output-container:has(.premium-policy-parameters) .recharts-responsive-container,
+  .print-report-body .module-output-container:has(.premium-policy-parameters) .recharts-wrapper,
+  .print-report-body .module-output-container:has(.premium-policy-parameters) .recharts-surface {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .print-report-body .module-output-container:has(.premium-policy-parameters) > .space-y-4 > .grid.gap-4 > div:last-child > .grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 5pt !important;
+  }
 }
