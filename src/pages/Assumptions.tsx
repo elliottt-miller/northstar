@@ -210,6 +210,9 @@ export function AssumptionsPage() {
           <Row label="Group LTD taxability factor" description="When a group LTD benefit is marked taxable, the net benefit displayed is 70% of the gross benefit." locked>
             <LockedValue label="70% of gross" />
           </Row>
+          <Row label="Premium reduction without COLA" description="Assumed reduction to the entered Individual DI premium when modeling a policy without COLA. Applied consistently in disability comparisons.">
+            <PercentInput value={disabilityA.colaRemovedPremiumReductionRate ?? 0.20} onChange={(v) => updateDisability({ colaRemovedPremiumReductionRate: v })} />
+          </Row>
         </div>
       </Card>
 
