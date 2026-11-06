@@ -1,6 +1,6 @@
 import { DisabilityInputs, DisabilityAssumptions, DisabilityOutputs, DisabilityIncomeProjectionPoint, DiBenefitPeriod } from "../types";
 import { nonNegative, clamp, roundCurrency, safeDivide, roundPercent } from "@/lib/math";
-import { disabilityColaFactor, resolveDisabilityColaRate } from "./disabilityCola";
+import { disabilityColaFactor, disabilityPremiumFactor, resolveDisabilityColaRate } from "./disabilityCola";
 
 /**
  * Computes the gross monthly LTD benefit:
@@ -105,7 +105,7 @@ export function calculateDisabilityGap(
   // premium with COLA included. If COLA is removed, premium is modeled 20% lower.
   const projectionMonths = yearsToRetirement * 12;
   const enteredMonthlyPremium = nonNegative(inputs.privateDiMonthlyPremium ?? 0);
-  const monthlyPremium = roundCurrency(colaRate > 0 ? enteredMonthlyPremium : enteredMonthlyPremium * 0.8);
+  const monthlyPremium = enteredMonthlyPremium * disabilityPremiumFactor(assumptions);
   const lifetimeIDIExpense = roundCurrency(monthlyPremium * projectionMonths);
 
   return {
