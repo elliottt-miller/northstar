@@ -5,6 +5,7 @@ import { calculateIncomeGapScenarios } from "../src/features/risk-modules/life/c
 import { calculateDisabilityGap } from "../src/features/risk-modules/disability/calculations/calculateDisabilityGap"
 import { calculateBreakEven } from "../src/features/risk-modules/disability/calculators/calculateBreakEven"
 import { disabilityColaFactor, resolveDisabilityColaRate } from "../src/features/risk-modules/disability/calculations/disabilityCola"
+import { calculateAssetComparisonTotals, calculateJobComparison } from "../src/features/risk-modules/disability/calculations/disabilityComparisons"
 
 function approximately(actual: number, expected: number, tolerance = 0.01): void {
   assert.ok(
@@ -15,6 +16,8 @@ function approximately(actual: number, expected: number, tolerance = 0.01): void
 
 assert.equal(disabilityColaFactor(11, { colaRate: 0.03 }), 1)
 assert.equal(disabilityColaFactor(12, { colaRate: 0.03 }), 1.03)
+assert.equal(resolveDisabilityColaRate({ colaRate: 0 }), 0)
+assert.equal(disabilityColaFactor(12, { colaRate: 0 }), 1)
 approximately(disabilityColaFactor(24, { colaRate: 0.03 }), 1.0609)
 assert.equal(resolveDisabilityColaRate({}), 0.03)
 approximately(resolveDisabilityColaRate({ colaMethod: "cpi", cpiPrevious: 300, cpiCurrent: 309 }), 0.03)
@@ -60,6 +63,67 @@ assert.deepEqual(
   [48_000, 48_000, 48_000],
 )
 assert.equal(disabilityWithoutCola.lifetimeIDIExpense, 56 * 36)
+
+const disabilityCustomPremiumReduction = calculateDisabilityGap(
+  { ...disabilityInputs, privateDiMonthlyPremium: 70 },
+  { incomeGrowthRateAnnual: 0, colaRate: 0, colaRemovedPremiumReductionRate: 0.25 },
+)
+assert.equal(disabilityCustomPremiumReduction.lifetimeIDIExpense, 52.5 * 36)
+
+const jobAInput = {
+  annualIncome: 120_000,
+  groupCoveragePercent: 60,
+  groupMonthlyCap: 5_000,
+  includesIndividualDI: false,
+  individualDIMonthlyPremium: 0,
+  individualDIMonthlyBenefit: 0,
+}
+const jobBInput = {
+  annualIncome: 100_000,
+  groupCoveragePercent: 60,
+  groupMonthlyCap: 0,
+  includesIndividualDI: true,
+  individualDIMonthlyPremium: 100,
+  individualDIMonthlyBenefit: 3_000,
+}
+const taxableJobComparison = calculateJobComparison(jobAInput, jobBInput, true, {
+  incomeGrowthRateAnnual: 0.03,
+  colaRate: 0,
+})
+assert.equal(taxableJobComparison.jobA.groupLTDAnnualGross, 60_000)
+assert.equal(taxableJobComparison.jobA.groupLTDAnnualNet, 42_000)
+assert.equal(taxableJobComparison.jobA.annualIncomeIfDisabled, 42_000)
+assert.equal(taxableJobComparison.jobB.annualIncomeAfterPremium, 99_040)
+assert.equal(taxableJobComparison.jobB.annualIncomeIfDisabled, 78_000)
+
+const nonTaxableJobComparison = calculateJobComparison(jobAInput, jobBInput, false)
+assert.equal(nonTaxableJobComparison.jobA.annualIncomeIfDisabled, 60_000)
+const customNoColaJobComparison = calculateJobComparison(jobAInput, jobBInput, true, {
+  incomeGrowthRateAnnual: 0.03,
+  colaRate: 0,
+  colaRemovedPremiumReductionRate: 0.25,
+})
+assert.equal(customNoColaJobComparison.jobB.annualIncomeAfterPremium, 99_100)
+
+const defaultAssetComparison = calculateAssetComparisonTotals(
+  [{ id: "home", label: "Home", assetValue: 400_000, annualPremium: 1_200 }],
+  100,
+  600_000,
+  { incomeGrowthRateAnnual: 0.03 },
+)
+assert.equal(defaultAssetComparison.annualOtherAssetInsuranceCost, 1_200)
+assert.equal(defaultAssetComparison.annualIncomeInsuranceCost, 1_200)
+assert.equal(defaultAssetComparison.projectedIndividualDIBenefits, 600_000)
+assert.equal(defaultAssetComparison.costRatio, 1.5)
+
+const noColaAssetComparison = calculateAssetComparisonTotals(
+  [{ id: "home", label: "Home", assetValue: 400_000, annualPremium: 1_200 }],
+  100,
+  480_000,
+  { incomeGrowthRateAnnual: 0.03, colaRate: 0 },
+)
+assert.equal(noColaAssetComparison.annualIncomeInsuranceCost, 960)
+assert.equal(noColaAssetComparison.projectedIndividualDIBenefits, 480_000)
 
 const breakEven = calculateBreakEven({
   monthlyPremium: 500,
