@@ -73,7 +73,7 @@ export type DisabilityIncomeProjectionPoint = {
   individualDIAnnualBenefit: number;
   /** Combined annual benefit (LTD + individual DI). */
   totalAnnualBenefit: number;
-  /** Uncovered income gap: max(0, annualIncome − totalAnnualBenefit). */
+  /** Uncovered income gap: max(0, annualIncomeNet − totalAnnualBenefit). */
   annualGap: number;
 };
 
