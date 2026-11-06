@@ -4,10 +4,13 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ModuleMetricCard, type MetricCardAccent } from "@/features/risk-modules/core/ModuleMetricCard"
 import { formatCurrency } from "@/lib/utils"
-import type { DisabilityInputs, DisabilityOtherAsset } from "../types"
+import type { DisabilityAssumptions, DisabilityInputs, DisabilityOtherAsset, DisabilityOutputs } from "../types"
+import { calculateAssetComparisonTotals } from "../calculations/disabilityComparisons"
 
 interface AssetComparisonModuleProps {
   inputs?: DisabilityInputs
+  outputs: DisabilityOutputs
+  assumptions?: DisabilityAssumptions
   onInputsChange?: (next: DisabilityInputs) => void
 }
 
@@ -137,31 +140,38 @@ function ComparisonColumn({ datum, columnIndex, valueMax, premiumMax, minimumBar
   )
 }
 
-export function AssetComparisonModule({ inputs, onInputsChange }: AssetComparisonModuleProps) {
-  const monthlyIncomeInsurancePremium = Math.max(0, inputs?.privateDiMonthlyPremium ?? 0)
-  const annualIncomeInsuranceCost = monthlyIncomeInsurancePremium * 12
-  const projectionYears = Math.max(0, (inputs?.retirementAge ?? 0) - (inputs?.currentAge ?? 0))
-  const netIncomeAsset = Math.max(0, inputs?.privateDiBenefitMonthly ?? 0) * 12 * projectionYears
+export function AssetComparisonModule({ inputs, outputs, assumptions, onInputsChange }: AssetComparisonModuleProps) {
   const canEditAssets = Boolean(inputs && onInputsChange)
   const [fallbackRows, setFallbackRows] = useState<AssetPremiumRow[]>(DEFAULT_ASSET_ROWS)
   const assetRows = canEditAssets ? (inputs!.otherAssets ?? DEFAULT_ASSET_ROWS) : fallbackRows
+  const totals = useMemo(
+    () => calculateAssetComparisonTotals(
+      assetRows,
+      inputs?.privateDiMonthlyPremium ?? 0,
+      outputs.totalIndividualDICoverage,
+      assumptions,
+    ),
+    [assetRows, assumptions, inputs?.privateDiMonthlyPremium, outputs.totalIndividualDICoverage],
+  )
+  const annualIncomeInsuranceCost = totals.annualIncomeInsuranceCost
+  const netIncomeAsset = totals.projectedIndividualDIBenefits
   const [assetsExpanded, setAssetsExpanded] = useState(false)
   const collapsedAssetLimit = 4
   const hasHiddenAssets = assetRows.length > collapsedAssetLimit
   const visibleAssetRows = assetsExpanded || !hasHiddenAssets ? assetRows : assetRows.slice(0, collapsedAssetLimit)
   const reportAssetRows = assetRows.filter((row) => row.label.trim() || row.assetValue > 0 || row.annualPremium > 0)
 
-  const annualOtherAssetInsuranceCost = useMemo(() => assetRows.reduce((sum, row) => sum + (row.annualPremium || 0), 0), [assetRows])
-  const totalAssetValue = useMemo(() => assetRows.reduce((sum, row) => sum + (row.assetValue || 0), 0), [assetRows])
-  const valueDifference = safeAmount(Math.abs(netIncomeAsset - totalAssetValue))
-  const costDifference = safeAmount(Math.abs(annualOtherAssetInsuranceCost - annualIncomeInsuranceCost))
-  const otherCostPerThousand = totalAssetValue > 0 ? (annualOtherAssetInsuranceCost / totalAssetValue) * 1_000 : null
-  const incomeCostPerThousand = netIncomeAsset > 0 ? (annualIncomeInsuranceCost / netIncomeAsset) * 1_000 : null
-  const costRatio = otherCostPerThousand !== null && incomeCostPerThousand !== null && incomeCostPerThousand > 0 ? otherCostPerThousand / incomeCostPerThousand : null
+  const annualOtherAssetInsuranceCost = totals.annualOtherAssetInsuranceCost
+  const totalAssetValue = totals.totalAssetValue
+  const valueDifference = totals.valueDifference
+  const costDifference = totals.costDifference
+  const otherCostPerThousand = totals.otherCostPerThousand
+  const incomeCostPerThousand = totals.incomeCostPerThousand
+  const costRatio = totals.costRatio
 
   const chartData: ComparisonDatum[] = [
     { name: "Other Assets", value: safeAmount(totalAssetValue), premium: safeAmount(annualOtherAssetInsuranceCost), ...ASSET_COMPARISON_COLORS.otherAssets },
-    { name: "Income Asset", value: safeAmount(netIncomeAsset), premium: safeAmount(annualIncomeInsuranceCost), ...ASSET_COMPARISON_COLORS.incomeAsset },
+    { name: "Projected DI Benefits", value: safeAmount(netIncomeAsset), premium: safeAmount(annualIncomeInsuranceCost), ...ASSET_COMPARISON_COLORS.incomeAsset },
     { name: "Difference", value: valueDifference, premium: costDifference, ...ASSET_COMPARISON_COLORS.difference },
   ]
   const valueMax = Math.max(...chartData.map((row) => row.value), 1)
@@ -240,7 +250,7 @@ export function AssetComparisonModule({ inputs, onInputsChange }: AssetCompariso
           <div className="border-b border-slate-800/70 pb-4">
             <div>
               <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-slate-300">Asset Protection Comparison</h2>
-              <p className="mt-1 text-xs leading-relaxed text-slate-500">Compare annual protection cost for other assets with the value of protected income.</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-500">Compare advisor-entered annual asset premiums with the annual Individual DI premium and projected benefits through retirement.</p>
             </div>
           </div>
 
@@ -255,7 +265,7 @@ export function AssetComparisonModule({ inputs, onInputsChange }: AssetCompariso
 
       <div className="asset-comparison-metrics grid gap-3 sm:grid-cols-3">
         <EfficiencyCard label="Other Asset" rate={otherCostPerThousand} accent="primary" />
-        <EfficiencyCard label="Income Asset" rate={incomeCostPerThousand} accent="primary" />
+        <EfficiencyCard label="Projected DI Benefits" rate={incomeCostPerThousand} accent="primary" />
         <ComparisonCard ratio={costRatio} />
       </div>
     </div>

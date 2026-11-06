@@ -375,16 +375,39 @@ The disability module remains governed by its existing implementation under:
 - `src/features/risk-modules/disability/calculations/`
 - `src/features/risk-modules/disability/components/`
 
-Core conventions remain:
+Core conventions:
 
 ```ts
 ltdMonthlyGross = min(annualIncome × coveragePercent / 12, monthlyCap)
+monthlyCap = 0 ? uncapped : entered cap
 ltdNetMonthly = ltdTaxable ? ltdMonthlyGross × 0.70 : ltdMonthlyGross
 totalNetMonthlyBenefit = ltdNetMonthly + privateDiBenefitMonthly
 incomeLossNet = annualIncome × 0.70 / 12 − totalNetMonthlyBenefit
 ```
 
-The advisor-adherence update in this pass targeted Life Insurance, Liability/Lawsuit, and Unemployment.
+The disability projection applies the configured income growth rate to earned income, adjusts taxable Group LTD to 70% of its gross benefit, and applies Individual DI COLA to the projected benefit stream. The entered Individual DI benefit and premium represent a COLA-included policy by default.
+
+Without COLA:
+
+```ts
+individualDIBenefit[year] = enteredMonthlyBenefit × 12
+effectiveMonthlyPremium = enteredMonthlyPremium × (1 − colaRemovedPremiumReductionRate)
+```
+
+`colaRemovedPremiumReductionRate` defaults to 20% and is configurable in advisor assumptions. Legacy saved scenarios without the field use the same default.
+
+Job comparison:
+
+```ts
+jobAIncome = jobAIncomeInput
+jobBIncome = max(0, jobBIncomeInput − effectiveMonthlyPremium × 12)
+jobAIncomeIfDisabled = netGroupLTD
+jobBIncomeIfDisabled = netGroupLTD + enteredIndividualDIBenefit × 12
+```
+
+Group LTD is computed separately for each job from its income, coverage percentage, and monthly cap. When taxable, the 70% factor is applied after the cap. Job comparison is a current-year comparison; projected COLA growth is represented in the disability projection.
+
+Asset Comparison uses the sum of projected Individual DI benefits from the shared disability calculation through the policy benefit period and projection end age. Its annual income-insurance cost is `effectiveMonthlyPremium × 12`. Other asset costs are the sum of advisor-entered annual premiums; they are not derived from asset values.
 
 ---
 
