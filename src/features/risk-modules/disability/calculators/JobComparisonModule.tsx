@@ -5,10 +5,12 @@ import { ModuleMetricCard } from "@/features/risk-modules/core/ModuleMetricCard"
 import { financialBarChartTheme, topStackCellRadius } from "@/components/charts/financialBarChartTheme"
 import { UniformStackedBar } from "@/components/charts/UniformStackedBar"
 import { formatCurrency } from "@/lib/utils"
-import type { DisabilityInputs } from "../types"
+import type { DisabilityAssumptions, DisabilityInputs } from "../types"
+import { calculateJobComparison } from "../calculations/disabilityComparisons"
 
 interface JobComparisonModuleProps {
   inputs?: DisabilityInputs
+  assumptions?: DisabilityAssumptions
   animate?: boolean
 }
 
@@ -83,11 +85,6 @@ function getInitialJobs(inputs?: DisabilityInputs): { jobA: JobState; jobB: JobS
     jobA: { salary, groupPct, groupCap, hasIdi: false, monthlyPremium: 0, idiBenefit: 0 },
     jobB: { salary, groupPct, groupCap, hasIdi: idiBenefit > 0 || monthlyPremium > 0, monthlyPremium, idiBenefit },
   }
-}
-
-function calcGroupLTDAnnual(salary: number, groupPct: number, groupCap: number): number {
-  const uncapped = Math.max(0, salary) * (Math.max(0, groupPct) / 100)
-  return groupCap > 0 ? Math.min(uncapped, groupCap * 12) : uncapped
 }
 
 function parseWholeNumberInput(value: string): number {
@@ -187,10 +184,10 @@ function ComparisonTooltip({ active, payload, label }: any) {
       <p className="mb-2 font-semibold text-gray-100">{label}</p>
       <div className="space-y-1.5">
         <div className="flex justify-between gap-4 border-b border-gray-800 pb-1.5">
-          <span className="text-gray-400">Annual Income</span>
+          <span className="text-gray-400">Annual Income (Gross)</span>
           <span className="font-mono text-gray-100">{formatCurrency(annualIncome)}/yr</span>
         </div>
-        <div className="flex justify-between gap-4"><span className="text-blue-400">Group LTD</span><span className="font-mono text-gray-100">{formatCurrency(groupLTD)}/yr</span></div>
+        <div className="flex justify-between gap-4"><span className="text-blue-400">Group LTD (Net)</span><span className="font-mono text-gray-100">{formatCurrency(groupLTD)}/yr</span></div>
         <div className="flex justify-between gap-4"><span className="text-cyan-400">IDI Benefit</span><span className="font-mono text-gray-100">{formatCurrency(idiBenefit)}/yr</span></div>
         <div className="flex justify-between gap-4"><span className="text-red-400">Income Gap</span><span className="font-mono text-gray-100">{formatCurrency(incomeGap)}/yr</span></div>
       </div>
@@ -198,7 +195,7 @@ function ComparisonTooltip({ active, payload, label }: any) {
   )
 }
 
-export function JobComparisonModule({ inputs, animate = true }: JobComparisonModuleProps) {
+export function JobComparisonModule({ inputs, assumptions, animate = true }: JobComparisonModuleProps) {
   const initial = useMemo(() => getInitialJobs(inputs), [inputs])
   const [jobA, setJobA] = useState<JobState>(initial.jobA)
   const [jobB, setJobB] = useState<JobState>(initial.jobB)
@@ -209,16 +206,34 @@ export function JobComparisonModule({ inputs, animate = true }: JobComparisonMod
     setJobB(next.jobB)
   }, [inputs])
 
-  const jobAIncome = Math.max(0, jobA.salary)
-  const jobBAnnualPremium = jobB.hasIdi ? Math.max(0, jobB.monthlyPremium) * 12 : 0
-  const jobBIncome = Math.max(0, jobB.salary - jobBAnnualPremium)
+  const jobValues = calculateJobComparison(
+    {
+      annualIncome: jobA.salary,
+      groupCoveragePercent: jobA.groupPct,
+      groupMonthlyCap: parseWholeNumberInput(jobA.groupCap),
+      includesIndividualDI: jobA.hasIdi,
+      individualDIMonthlyPremium: jobA.monthlyPremium,
+      individualDIMonthlyBenefit: jobA.idiBenefit,
+    },
+    {
+      annualIncome: jobB.salary,
+      groupCoveragePercent: jobB.groupPct,
+      groupMonthlyCap: parseWholeNumberInput(jobB.groupCap),
+      includesIndividualDI: jobB.hasIdi,
+      individualDIMonthlyPremium: jobB.monthlyPremium,
+      individualDIMonthlyBenefit: jobB.idiBenefit,
+    },
+    inputs?.ltdTaxable ?? false,
+    assumptions,
+  )
+  const jobAIncome = jobValues.jobA.annualIncome
+  const jobBIncome = jobValues.jobB.annualIncomeAfterPremium
+  const jobAGroupLTD = Math.round(jobValues.jobA.groupLTDAnnualNet)
+  const jobBGroupLTD = Math.round(jobValues.jobB.groupLTDAnnualNet)
+  const jobBIDIAnnual = Math.round(jobValues.jobB.individualDIAnnualBenefit)
 
-  const jobAGroupLTD = Math.round(calcGroupLTDAnnual(jobA.salary, jobA.groupPct, parseWholeNumberInput(jobA.groupCap)))
-  const jobBGroupLTD = Math.round(calcGroupLTDAnnual(jobB.salary, jobB.groupPct, parseWholeNumberInput(jobB.groupCap)))
-  const jobBIDIAnnual = jobB.hasIdi ? Math.round(Math.max(0, jobB.idiBenefit) * 12) : 0
-
-  const jobAIncomeIfDisabled = jobAGroupLTD
-  const jobBIncomeIfDisabled = jobBGroupLTD + jobBIDIAnnual
+  const jobAIncomeIfDisabled = Math.round(jobValues.jobA.annualIncomeIfDisabled)
+  const jobBIncomeIfDisabled = Math.round(jobValues.jobB.annualIncomeIfDisabled)
 
   const jobAChartCovered = Math.min(jobAIncomeIfDisabled, jobAIncome)
   const jobAChartGap = Math.max(0, jobAIncome - jobAChartCovered)
@@ -299,7 +314,7 @@ export function JobComparisonModule({ inputs, animate = true }: JobComparisonMod
                   <p className="mt-0.5 text-xs text-gray-500">Annual income breakdown — covered vs. unprotected</p>
                 </div>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-gray-400">
-                  <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-4 rounded-sm bg-blue-500" />Group LTD</span>
+                  <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-4 rounded-sm bg-blue-500" />Group LTD (Net)</span>
                   <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-4 rounded-sm bg-cyan-500" />IDI Benefit</span>
                   <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-4 rounded-sm bg-red-500" />Income Gap</span>
                 </div>
@@ -352,8 +367,8 @@ export function JobComparisonModule({ inputs, animate = true }: JobComparisonMod
           <div className="job-comparison-metrics flex flex-col gap-3 xl:justify-center">
             <ModuleMetricCard label="Job A Income" value={`${formatCurrency(jobAIncome)}/yr`} description="Income input" accent="neutral" />
             <ModuleMetricCard label="Job B Income" value={`${formatCurrency(jobBIncome)}/yr`} description="Income input − annual Individual DI premium" accent="neutral" />
-            <ModuleMetricCard label="Job A Income if Disabled" value={`${formatCurrency(jobAIncomeIfDisabled)}/yr`} description="Group LTD benefit" accent="primary" />
-            <ModuleMetricCard label="Job B Income if Disabled" value={`${formatCurrency(jobBIncomeIfDisabled)}/yr`} description="Group LTD benefit + Individual DI benefit" accent="primary" />
+            <ModuleMetricCard label="Job A Income if Disabled" value={`${formatCurrency(jobAIncomeIfDisabled)}/yr`} description={inputs?.ltdTaxable ? "Tax-adjusted Group LTD benefit" : "Group LTD benefit"} accent="primary" />
+            <ModuleMetricCard label="Job B Income if Disabled" value={`${formatCurrency(jobBIncomeIfDisabled)}/yr`} description={inputs?.ltdTaxable ? "Tax-adjusted Group LTD + Individual DI benefit" : "Group LTD + Individual DI benefit"} accent="primary" />
           </div>
         </div>
       </div>
