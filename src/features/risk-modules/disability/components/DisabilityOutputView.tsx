@@ -16,7 +16,7 @@ import { formatCurrency } from "@/lib/utils"
 import { getDisabilityNarrative } from "../constants/moduleCopy"
 import { AnimatedSection } from "@/components/ui/animated-section"
 import { transformDisabilityChartData } from "../transformers/transformDisabilityChartData"
-import { DEFAULT_DISABILITY_COLA_RATE, disabilityColaFactor, resolveDisabilityColaRate } from "../calculations/disabilityCola"
+import { DEFAULT_DISABILITY_COLA_RATE, disabilityColaFactor, disabilityPremiumFactor, resolveColaRemovedPremiumReductionRate, resolveDisabilityColaRate } from "../calculations/disabilityCola"
 import { PremiumVsSelfInsuredModule } from "../calculators/PremiumVsSelfInsuredModule"
 import { JobComparisonModule } from "../calculators/JobComparisonModule"
 import { AssetComparisonModule } from "../calculators/AssetComparisonModule"
@@ -25,7 +25,6 @@ import {
   MetricGroup,
 } from "@/features/risk-modules/core/ModuleMetricCard"
 
-const COLA_REMOVED_PREMIUM_FACTOR = 0.8
 const SUMMARY_ROW_CLASS = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-1.5"
 const SUMMARY_LABEL_CLASS = "min-w-0 whitespace-nowrap text-slate-400"
 const SUMMARY_VALUE_CLASS = "whitespace-nowrap text-right font-mono font-semibold"
@@ -153,8 +152,8 @@ export function DisabilityOutputView({
   const enteredMonthlyPremium = inputs?.privateDiMonthlyPremium ?? 0
   const enteredMonthlyBenefit = inputs?.privateDiBenefitMonthly ?? 0
   const projectionMonths = outputs.incomeProjection.length * 12
-  const currentPolicyMonthlyPremium = colaEnabled ? enteredMonthlyPremium : enteredMonthlyPremium * COLA_REMOVED_PREMIUM_FACTOR
-  const colaRemovedMonthlySavings = roundCurrencyValue(enteredMonthlyPremium * (1 - COLA_REMOVED_PREMIUM_FACTOR))
+  const currentPolicyMonthlyPremium = enteredMonthlyPremium * disabilityPremiumFactor(assumptions ?? {})
+  const colaRemovedMonthlySavings = roundCurrencyValue(enteredMonthlyPremium * resolveColaRemovedPremiumReductionRate(assumptions ?? {}))
   const colaRemovedLifetimeSavings = roundCurrencyValue(colaRemovedMonthlySavings * projectionMonths)
   const withColaIndividualDICoverage = outputs.incomeProjection.reduce((sum, point, yearIndex) => {
     if (enteredMonthlyBenefit <= 0 || point.individualDIAnnualBenefit <= 0) return sum
@@ -200,7 +199,7 @@ export function DisabilityOutputView({
   function renderVisualization() {
     if (visualization === "premiumVsSelfInsured") {
       const basePremium = inputs?.privateDiMonthlyPremium ?? 0
-      const policyPremium = colaEnabled ? basePremium : basePremium * COLA_REMOVED_PREMIUM_FACTOR
+      const policyPremium = basePremium * disabilityPremiumFactor(assumptions ?? {})
       return (
         <PremiumVsSelfInsuredModule
           monthlyPremium={policyPremium}
@@ -214,8 +213,8 @@ export function DisabilityOutputView({
       )
     }
 
-    if (visualization === "jobComparison") return <JobComparisonModule inputs={inputs} animate={animateChart} />
-    if (visualization === "assetComparison") return <AssetComparisonModule inputs={inputs} onInputsChange={onInputsChange} />
+    if (visualization === "jobComparison") return <JobComparisonModule inputs={inputs} assumptions={assumptions} animate={animateChart} />
+    if (visualization === "assetComparison") return <AssetComparisonModule inputs={inputs} outputs={outputs} assumptions={assumptions} onInputsChange={onInputsChange} />
 
     return (
       <div className="module-output-container">
