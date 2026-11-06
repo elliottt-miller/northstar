@@ -1,6 +1,7 @@
 export type DisabilityColaMethod = "fixed" | "cpi"
 
 export const DEFAULT_DISABILITY_COLA_RATE = 0.03
+export const DEFAULT_COLA_REMOVED_PREMIUM_REDUCTION_RATE = 0.20
 
 export interface DisabilityColaTerms {
   /** Fixed annual increase, expressed as a decimal (3% = 0.03). */
@@ -13,6 +14,8 @@ export interface DisabilityColaTerms {
   colaAnnualCap?: number
   /** Anniversary on which the first increase occurs. Defaults to 1. */
   colaFirstAdjustmentYear?: number
+  /** Premium reduction modeled when COLA is removed (20% = 0.20). */
+  colaRemovedPremiumReductionRate?: number
 }
 
 function finiteNonNegative(value: number | undefined): number {
@@ -40,6 +43,21 @@ export function resolveDisabilityColaRate(terms: DisabilityColaTerms): number {
   }
 
   return rate
+}
+
+/** Resolves the assumed premium discount when modeling a policy without COLA. */
+export function resolveColaRemovedPremiumReductionRate(terms: DisabilityColaTerms): number {
+  const rate = terms.colaRemovedPremiumReductionRate
+  return Number.isFinite(rate)
+    ? Math.min(1, Math.max(0, Number(rate)))
+    : DEFAULT_COLA_REMOVED_PREMIUM_REDUCTION_RATE
+}
+
+/** Applies the COLA premium assumption consistently across disability views. */
+export function disabilityPremiumFactor(terms: DisabilityColaTerms): number {
+  return resolveDisabilityColaRate(terms) > 0
+    ? 1
+    : 1 - resolveColaRemovedPremiumReductionRate(terms)
 }
 
 /**
